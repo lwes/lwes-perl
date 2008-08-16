@@ -1,6 +1,5 @@
 LICENSE
 LWES/EventParser.pm
-lwes.i
 lwes-perl-event-listener
 LWES.pm
 lwes_wrap.c

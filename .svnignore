@@ -1,5 +1,6 @@
 blib
 *.bs
+*.gz
 *.o
 Makefile
 Makefile.old

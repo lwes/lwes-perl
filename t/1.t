@@ -14,6 +14,7 @@ my $event = LWES::create_event(undef, "TestEvent");
 isnt($event, undef, "Event created");
 
 LWES::set_string($event, "Test1", "Test1");
+LWES::emit(undef, undef);
 LWES::emit($emitter, $event);
 
 LWES::destroy_event($event);

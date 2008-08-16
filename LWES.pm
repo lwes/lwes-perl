@@ -79,4 +79,93 @@ package LWES;
 
 package LWES;
 
+
+
+=head1 NAME
+
+LWES - Perl extension for the Light Weight Event System
+
+=head1 SYNOPSIS
+
+  use LWES;
+  use LWES::EventParser;
+  use IO::Socket::Multicast;
+
+  my $LWES_ADDRESS = "224.1.1.1";
+  my $LWES_PORT = 9000;
+
+  # load an event schema from a file to validate events
+  my $event_db = LWES::create_db("eventTypes.esf");
+
+  # create an emitter for sending events
+  my $emitter = LWES::create_emitter($LWES_ADDRESS, 0, $LWES_PORT, 0, 60);
+
+  # create an event and validate it against the DB
+  my $event = LWES::create_event($event_db, "MyEvent");
+
+  # or create an unvalidated event
+  my $event2 = LWES::create_event(undef, "MyOtherEvent");
+
+  # set some fields
+  LWES::set_string($event, "MyField", "MyValue");
+  LWES::set_int32($event2, "MyNumber", 123);
+
+  # emit the events
+  LWES::emit($emitter, $event);
+  LWES::emit($emitter, $event2);
+
+  # listen to some events on the network
+  my $socket = IO::Socket::Multicast->new(LocalPort => $LWES_PORT,
+                                          Reuse     => 1);
+  $socket->mcast_add($LWES_ADDRESS);
+  my ($message, $peer);
+  $peer = recv($socket, $message, 65535, 0);
+  my ($port, $peeraddr) = sockaddr_in($peer);
+
+  # deserialize the event into a perl hash
+  my $event = bytesToEvent($message);
+
+  # access the various event fields
+  my $data = $event->{'MyField'}; 
+
+  # cleanup
+  LWES::destroy_event($event);
+  LWES::destroy_emitter($emitter);
+  LWES::destroy_db($event_db);
+
+=head1 DESCRIPTION
+
+This is the Perl interface to the Light Weight Event System.  The
+Light Weight Event System is a UDP-based communication toolkit with
+built-in serialization, formatting, and type-checking.
+
+=head1 EXPORT
+
+None by default.
+
+=head1 AUTHOR
+
+Anthony Molinaro, E<lt>molinaro@users.sourceforge.netE<gt>
+Michael P. Lum, E<lt>mlum@users.sourceforge.netE<gt>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (C) 2008 Light Weight Event System
+All rights reserved.
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+=cut
+
 1;

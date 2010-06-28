@@ -3,93 +3,287 @@
 use strict;
 use warnings;
 use Getopt::Long;
+use Pod::Usage;
 use LWES::EventParser;
-use IO::Socket;
+use LWES::Listener;
+use IO::Socket::INET;
 use IO::Socket::Multicast;
 use Time::HiRes qw( gettimeofday );
+use POSIX;
 
 # don't buffer stdout
 $| = 1;
 
-my $port    = $ENV{'LWES_PORT'}    || 9191;
-my $addr    = $ENV{'LWES_ADDRESS'} || '224.0.0.69';
-my $debug   = 0;
-my $siteid  = 1;
+my $port             = $ENV{'LWES_PORT'}    || 9191;
+my $addr             = $ENV{'LWES_ADDRESS'} || '224.0.0.69';
+my $pidfile          = undef;
+my $rootdir          = undef;
+my $help_opt         = 0;
+my $man_opt          = 0;
+my $verbose_opt      = 0;
 
-sub printUsage {
-    ( my $id = $0 ) =~ s/^.*\///;   # basename;
-    STDERR->print(<<"EndOfUsage");
-Usage: $id [options] <listener name> <args>
-		{-m|--addr} <multicast_address>
-		{-p|--port} <multicast_port>
-		{-s|--site_id} <siteid>
-		{-d|--debug}              print extra debugging information
-		{--help}
-  		
-	<args> are passed directly to the listener constructor
-EndOfUsage
-    exit(0);
-}
+GetOptions
+  (
+    'help'           => \$help_opt,
+    'man'            => \$man_opt,
+    'verbose'        => \$verbose_opt,
+    'm|addr=s'       => \$addr,
+    'p|port=s'       => \$port,
+    'r|root=s'       => \$rootdir,
+    'pidfile=s'      => \$pidfile,
+  ) or pod2usage (2);
 
-# Read the command line options
-{
-  local $SIG{__WARN__}=
-    sub {
-      STDERR->print(join("\n",@_),"\n") if (@_);
-      printUsage();
-    };
-
-  GetOptions(
-             'm|addr=s'       => \$addr,
-             'p|port=s'       => \$port,
-             's|site_id=s'    => \$siteid,
-             'd|debug'        => \$debug,
-             'help'           => \&printUsage,
-            );
-}
+pod2usage (-exitval => -1, -verbose => 0) if $help_opt;
+pod2usage (-exitval => -2, -verbose => 2) if $man_opt;
 
 my $listener = shift @ARGV;
 
-unless ( defined($listener) ) {
-  $listener = "EventPrintingListener";
-}
-my $package_name = undef;
-if ( $listener!~ /::/ ) {
-  $package_name = "LWES::Listeners::".$listener;
-} else {
-  $package_name = $listener;
-}
+# default listener to one which just prints
+unless (defined($listener))
+  {
+    $listener = "LWES::Listeners::EventPrintingListener";
+  }
 
-# Load the module and create an instance
-eval "use $package_name;";
-if ($@) {
-  die "use $package_name failed ($@)";
-}
+# determine the callback which will process each event
+my $processEventFunc = getProcessEventFunc ($listener, @ARGV);
 
-my $listener_object = $package_name->new(@ARGV);
+unless (defined $rootdir)
+  {
+    # default rootdir to current working directory
+    $rootdir = getcwd ();
+  }
 
-# set up socket
-my $sock = IO::Socket::Multicast->new(LocalPort=>$port, Reuse=>1)
-  or die "Can't create socket: $!";
+# pidfile means to daemonize
+if (defined ($pidfile))
+  {
+    # place pidfile in cwd as well
+    unless ($pidfile =~ m#^/#)
+      {
+        $pidfile = "$rootdir/$pidfile";
+      }
+
+    chdir '/'                  or die "Can't chdir to /: $!";
+    open STDIN, '/dev/null'    or die "Can't read /dev/null: $!";
+    open STDOUT, '>>/dev/null' or die "Can't write to /dev/null: $!";
+    open STDERR, '>>/dev/null' or die "Can't write to /dev/null: $!";
+    defined (my $pid = fork)   or die "Can't fork: $!";
+    if ($pid != 0)
+      {
+        # parent writes pidfile
+        open PID, ">$pidfile";
+        print PID "$pid";
+        close PID;
+        exit;
+      }
+    else
+      {
+        # child continues daemonizing
+        POSIX::setsid()        or die "Can't start a new session: $!";
+        umask 0;
+        open STDOUT, "> $rootdir/listener.out";
+        open STDERR, "> $rootdir/listener.err";
+      }
+  }
+
+# set up socket either UDP or Multicast
+my $sock = undef;
+if ($addr eq "0.0.0.0")
+  {
+    $sock = IO::Socket::INET->new(LocalPort=>$port, Proto=>'udp', Reuse=>1);
+  }
+else
+  {
+    $sock = IO::Socket::Multicast->new(LocalPort=>$port, Reuse=>1)
+      or die "Can't create socket: $!";
+    # add multicast address
+    $sock->mcast_add($addr) or die "mcast_add: $!";
+  }
 
 $sock->sockopt(SO_RCVBUF,(16*1024*1024));
 
-# add multicast address
-$sock->mcast_add($addr) or die "mcast_add: $!";
-while (1) {
-  my ($message,$peer);
-  die "recv error: $!" unless $peer = recv($sock,$message,65535,0);
-  my ($port,$peeraddr) = sockaddr_in($peer);
+while (1)
+  {
+    my ($message, $peer);
+    die "recv error: $!" unless $peer = recv ($sock, $message, 65535, 0);
+    my ($port, $peeraddr) = sockaddr_in($peer);
 
-  my $event = bytesToEvent($message);
+    my $event = bytesToEvent($message);
 
-  # set up a header similiar to the lwes header
-  my ($seconds, $microseconds) = gettimeofday;
-  $event->{'SenderPort'} = $port;
-  $event->{'SenderIP'}   = inet_ntoa($peeraddr);
-  $event->{'ReceiptTime'}= $seconds*1000+int($microseconds/1000);
+    # set up a header similiar to the lwes header
+    my ($seconds, $microseconds) = gettimeofday;
+    $event->{'SenderPort'} = $port;
+    $event->{'SenderIP'}   = inet_ntoa($peeraddr);
+    $event->{'ReceiptTime'}= $seconds*1000+int($microseconds/1000);
 
-  # let the listener process the event
-  $listener_object->processEvent($event);
-}
+    # let the listener process the event
+#    if (defined ($listener_object))
+#      {
+#        $listener_object->processEvent($event);
+#      }
+#    else
+#      {
+#        processEvent ($event);
+#      }
+    $processEventFunc->($event);
+  }
+
+0;
+
+__END__
+
+=head1 NAME
+
+lwes-perl-event-listener - listens for events on the network
+
+=head1 SYNOPSIS
+
+lwes-perl-event-listener [options] [<listener> [<args>] | <code>]
+
+Options:
+  -m|--addr <ip>              Address to listen on
+                                (default: 224.0.0.69)
+  -p|--port <port>            Port numer to listen on
+                                (default: 9191)
+  -r|--root <dir>             Directory to write logs/pid files
+                                (default: cwd)
+  --pidfile <filepath>        If a pidfile is specified this
+                              will daemonize itself.
+  -help                       Brief help message
+  -man                        Full Documentation
+
+<listener> is the name of a perl module which extends the base
+listener LWES::Listener and provides an initialize and processEvent
+method.  The <args> are passed directly to the listener constructor.
+
+code is perl code which is embedded in a function which takes one
+argument, a reference to a perl hash which contains the contents
+of the event called $event
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<-m|--addr>
+
+The address to listen on, if you are using UDP this should be 0.0.0.0,
+otherwise it should be a valid multicast address.
+
+=item B<-p|--port>
+
+The port to listen on.
+
+=item B<-r|--root>
+
+The directory to write log and pidfiles when daemonizing
+
+=item B<--pidfile>
+
+The path to a pidfile, it will default to being in the B<root> directory,
+specifying this option causes the listener to daemonize itself.
+
+=item B<-help>
+
+Print help information
+
+=item B<-man>
+
+Print more verbose help information
+
+=back
+
+=head1 DESCRIPTION
+
+The lwes-perl-event-listener is a tool for inspecting LWES events that are
+flowing to a particular machine.  It can listen for either multicast or
+udp events on an ip and port, then process the events as it receives them.
+It processes events as they appear, so on a heavy LWES stream may not be
+able to clear the system network buffer before it overflows.
+
+There are several ways to use the tool.  To just print out events as they
+are seen it can be invoked as
+
+% lwes-perl-event-listener -m <ip> -p <port>
+
+If you wish to create a module for handling events a skeleton is as
+follows (saved as Foo.pm)
+
+  package Foo;
+
+  use strict;
+
+  @Foo::ISA = qw(LWES::Listener);
+
+  sub initialize
+  {
+    my $self = shift;
+
+    print "Bar : initialize with @_\n";
+  }
+
+  sub processEvent
+  {
+    my $self  = shift;
+    my $event = shift;
+
+    print "Foo : Got event!\n";
+  }
+
+  1;
+
+Which can then be invoked as
+
+% lwes-perl-event-listener -m <ip> -p <port> Foo foo_arg
+
+This assumes the Foo.pm file is in the directory you invoke the listener
+from.
+
+Alternatively, you can install a listener into the LWES/Listeners/ directory
+in the perl LWES distribution (you'll have to find it).  In that case the
+file should look like
+
+  package LWES::Listeners::Bar;
+
+  use strict;
+
+  @LWES::Listeners::Bar::ISA = qw(LWES::Listener);
+
+  sub initialize
+  {
+    my $self = shift;
+
+    print "Bar : initialize with @_\n";
+  }
+
+  sub processEvent
+  {
+    my $self  = shift;
+    my $event = shift;
+
+    print "Bar : Got event!\n";
+  }
+
+  1;
+
+And be saved as Bar.pm in the system LWES/Listeners directory.  It can then
+be invoked as
+
+% lwes-perl-event-listener -m <ip> -p <port> Bar bar_arg
+
+Finally, the listener can be passed code which will be wrapped in a function
+called for each event.  An example of this is
+
+% lwes-perl-event-listener -m <ip> -p <port> \
+    'print $event->{"EventType"}."\n";'
+
+Internally this is wrapped by a function like
+
+  sub processEvent {
+    my $event = shift;
+    <code from command line>
+  }
+
+The $event is a reference to a perl hash.  64-bit values are Math::BigInt
+objects.
+
+=cut
 

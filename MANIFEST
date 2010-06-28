@@ -3,6 +3,7 @@ LWES/EventParser.pm
 LWES/Listener.pm
 LWES/Listeners/EventPrintingListener.pm
 lwes-perl-event-listener
+lwes-perl-journal-listener
 LWES.pm
 lwes_wrap.c
 Makefile.PL

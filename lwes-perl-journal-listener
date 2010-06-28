@@ -1,0 +1,82 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+
+use Getopt::Long;
+use Pod::Usage;
+use LWES::EventParser;
+use LWES::Listener;
+
+my $help_opt         = 0;
+my $man_opt          = 0;
+my $verbose_opt      = 0;
+
+GetOptions
+  (
+    'help'           => \$help_opt,
+    'man'            => \$man_opt,
+    'verbose'        => \$verbose_opt,
+  ) or pod2usage (2);
+
+pod2usage (-exitval => -1, -verbose => 0) if $help_opt;
+pod2usage (-exitval => -2, -verbose => 2) if $man_opt;
+
+my $listener_or_code;
+
+# if the first argument is a file, we'll assume it s a journal file, and
+# use the PrintingListener
+if (-f $ARGV[0])
+  {
+    $listener_or_code = "LWES::Listeners::EventPrintingListener";
+  }
+else
+  {
+    $listener_or_code = shift @ARGV;
+  }
+
+# determine the callback which will process each event
+my $processEventFunc = getProcessEventFunc ($listener_or_code, @ARGV);
+
+foreach my $journal (@ARGV)
+  {
+    if (-f $journal)
+      {
+        open FH, "zcat $journal |";
+
+        # read and parse header
+        my $header_bytes;
+        while ( read (FH, $header_bytes, 22) == 22)
+          {
+            my $header = bytesToHeader ($header_bytes);
+
+            # read and parse bytes
+            my $event_bytes;
+            my $n = read (FH, $event_bytes, $header->{'PayloadLength'});
+            if (defined ($n) && $n == $header->{'PayloadLength'})
+              {
+                my $event = bytesToEvent ($event_bytes);
+
+                # merge header into event
+                foreach my $h (keys %{$header})
+                  {
+                    unless (exists ($event->{$h}))
+                      {
+                        $event->{$h} = $header->{$h};
+                      }
+                  }
+
+                # call handler
+                $processEventFunc->($event);
+              }
+            else
+              {
+                die "malformed or truncated journal";
+              }
+          }
+
+        close FH;
+      }
+  }
+
+0;

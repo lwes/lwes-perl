@@ -6,8 +6,9 @@ my $lwes_cflags = `$pkg_cfg pkg-config lwes-0 --cflags`;
 
 WriteMakefile(
     'NAME'           => 'LWES',
-    'VERSION'        => '0.2.0',
-    'EXE_FILES'      => [ "lwes-perl-event-listener" ],
+    'VERSION'        => '0.3.0',
+    'EXE_FILES'      => [ "lwes-perl-event-listener",
+                          "lwes-perl-journal-listener" ],
     'PREREQ_PM'      => {
                           'IO::Socket::Multicast' => 0.98,
                         },

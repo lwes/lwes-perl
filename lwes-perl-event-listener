@@ -111,19 +111,15 @@ while (1)
 
     # set up a header similiar to the lwes header
     my ($seconds, $microseconds) = gettimeofday;
-    $event->{'SenderPort'} = $port;
-    $event->{'SenderIP'}   = inet_ntoa($peeraddr);
-    $event->{'ReceiptTime'}= $seconds*1000+int($microseconds/1000);
+    my $millis = int($microseconds/1000);
+
+    $event->{'ReceiptTime'}       = $seconds*1000+$millis;
+    $event->{'ReceiptTimeSecs'}   = $seconds;
+    $event->{'ReceiptTimeMillis'} = $millis;
+    $event->{'SenderIP'}          = inet_ntoa($peeraddr);
+    $event->{'SenderPort'}        = $port;
 
     # let the listener process the event
-#    if (defined ($listener_object))
-#      {
-#        $listener_object->processEvent($event);
-#      }
-#    else
-#      {
-#        processEvent ($event);
-#      }
     $processEventFunc->($event);
   }
 

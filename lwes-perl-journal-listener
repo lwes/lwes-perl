@@ -7,15 +7,18 @@ use Getopt::Long;
 use Pod::Usage;
 use LWES::EventParser;
 use LWES::Listener;
+use POSIX qw(strftime);
 
 my $help_opt         = 0;
 my $man_opt          = 0;
 my $verbose_opt      = 0;
+my $stats_opt        = 0;
 
 GetOptions
   (
     'help'           => \$help_opt,
     'man'            => \$man_opt,
+    'stats'          => \$stats_opt,
     'verbose'        => \$verbose_opt,
   ) or pod2usage (2);
 
@@ -40,6 +43,15 @@ my $processEventFunc = getProcessEventFunc ($listener_or_code, @ARGV);
 
 foreach my $journal (@ARGV)
   {
+    my $start      = time();
+    my $log_date   = strftime ("%a %b %e %H:%M:%S %Y", localtime ($start));
+    my $num_events = 0;
+
+    if ($stats_opt)
+      {
+        print "$log_date : $journal ";
+      }
+
     if (-f $journal)
       {
         open FH, "zcat $journal |";
@@ -68,6 +80,7 @@ foreach my $journal (@ARGV)
 
                 # call handler
                 $processEventFunc->($event);
+                $num_events++;
               }
             else
               {
@@ -76,6 +89,12 @@ foreach my $journal (@ARGV)
           }
 
         close FH;
+      }
+
+    if ($stats_opt)
+      {
+        my $end = time()-$start;
+        print "had $num_events events processed in $end seconds\n";
       }
   }
 

@@ -1,0 +1,7 @@
+Version 0.3.1 (molinaro)
+	* Header fields now consistent with 2 listener scripts
+	* Journal listener now has stats
+
+Version 0.3.0 (molinaro)
+	* Journal listener added
+	* Math::BigInt added for 64 bit values, no more hex

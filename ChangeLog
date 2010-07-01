@@ -1,3 +1,7 @@
+Version 0.4.0 (molinaro)
+	* Pass @ARGV as a reference to listener, so it can pull options from
+	  command line
+
 Version 0.3.1 (molinaro)
 	* Header fields now consistent with 2 listener scripts
 	* Journal listener now has stats

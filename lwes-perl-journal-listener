@@ -14,6 +14,8 @@ my $man_opt          = 0;
 my $verbose_opt      = 0;
 my $stats_opt        = 0;
 
+Getopt::Long::Configure ("pass_through");
+
 GetOptions
   (
     'help'           => \$help_opt,
@@ -39,7 +41,7 @@ else
   }
 
 # determine the callback which will process each event
-my $processEventFunc = getProcessEventFunc ($listener_or_code, @ARGV);
+my $processEventFunc = getProcessEventFunc ($listener_or_code, \@ARGV);
 
 foreach my $journal (@ARGV)
   {
@@ -99,3 +101,60 @@ foreach my $journal (@ARGV)
   }
 
 0;
+
+__END__
+
+=head1 NAME
+
+lwes-perl-journal-listener - listens for events from a journal
+
+=head1 SYNOPSIS
+
+lwes-perl-journal-listener [options] [<listener> [<args>] | <code>] <journal(s)>
+
+Options:
+  --stats                     Print information about each file processed
+  -help                       Brief help message
+  -man                        Full Documentation
+
+<listener> is the name of a perl module which extends the base
+listener LWES::Listener and provides an initialize and processEvent
+method.  The <args> are passed directly to the listener constructor.
+
+code is perl code which is embedded in a function which takes one
+argument, a reference to a perl hash which contains the contents
+of the event called $event
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--stats>
+
+Print information about how many events were processed and how long it took
+to process.
+
+=item B<-help>
+
+Print help information
+
+=item B<-man>
+
+Print more verbose help information
+
+=back
+
+=head1 DESCRIPTION
+
+The lwes-perl-journal-listener is a tool for inspecting LWES events that
+are in journal files created by the lwes-journaller.
+
+There are several ways to use the tool.  To just print out events as they
+are seen it can be invoked as
+
+% lwes-perl-journal-listener <journal>
+
+Alternatively you can provide a LWES::Listener module as outlined in
+the lwes-perl-event-listener man page.
+
+=cut

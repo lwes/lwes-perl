@@ -7,6 +7,16 @@ use LWES::Listener;
 @LWES::Listeners::EventPrintingListener::ISA =
   qw(LWES::Listener);
 
+sub initialize {
+# possible contents of function
+#  my $self = shift;
+#  my $args = shift;
+#  if (defined ($args)) {
+#    my @ARGV = @{$args};
+#    use Getopt::Long to parse additional command line options
+#  }
+}
+
 sub processEvent {
   my $self  = shift;
   my $event = shift;

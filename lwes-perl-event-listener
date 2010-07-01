@@ -22,6 +22,8 @@ my $help_opt         = 0;
 my $man_opt          = 0;
 my $verbose_opt      = 0;
 
+Getopt::Long::Configure ("pass_through");
+
 GetOptions
   (
     'help'           => \$help_opt,
@@ -45,7 +47,7 @@ unless (defined($listener))
   }
 
 # determine the callback which will process each event
-my $processEventFunc = getProcessEventFunc ($listener, @ARGV);
+my $processEventFunc = getProcessEventFunc ($listener, \@ARGV);
 
 unless (defined $rootdir)
   {
@@ -206,14 +208,21 @@ follows (saved as Foo.pm)
   package Foo;
 
   use strict;
+  use warnings;
+  use Getopt::Long;
 
   @Foo::ISA = qw(LWES::Listener);
 
   sub initialize
   {
     my $self = shift;
-
-    print "Bar : initialize with @_\n";
+    my $args = shift;
+    if (defined ($args))
+      {
+        my @ARGV = @{$args};
+        # parse additional options
+        GetOptions ( ... );
+      }
   }
 
   sub processEvent
@@ -240,14 +249,21 @@ file should look like
   package LWES::Listeners::Bar;
 
   use strict;
+  use warnings;
+  use Getopt::Long;
 
   @LWES::Listeners::Bar::ISA = qw(LWES::Listener);
 
   sub initialize
   {
     my $self = shift;
-
-    print "Bar : initialize with @_\n";
+    my $args = shift;
+    if (defined ($args))
+      {
+        my @ARGV = @{$args};
+        # parse additional options
+        GetOptions ( ... );
+      }
   }
 
   sub processEvent

@@ -1,3 +1,7 @@
+Version 0.4.1 (molinaro)
+	* Log all at once, and provide for optional passing of success/error rates
+	  from Listener object in journal listener
+
 Version 0.4.0 (molinaro)
 	* Pass @ARGV as a reference to listener, so it can pull options from
 	  command line

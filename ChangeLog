@@ -1,3 +1,6 @@
+Version 0.4.2 (molinaro)
+	* Changing license to New BSD
+
 Version 0.4.1 (molinaro)
 	* Log all at once, and provide for optional passing of success/error rates
 	  from Listener object in journal listener

@@ -6,7 +6,7 @@ my $lwes_cflags = `$pkg_cfg pkg-config lwes-1 --cflags`;
 
 WriteMakefile(
     'NAME'           => 'LWES',
-    'VERSION'        => '0.4.2',
+    'VERSION'        => '0.4.3',
     'EXE_FILES'      => [ "lwes-perl-event-listener",
                           "lwes-perl-journal-listener" ],
     'PREREQ_PM'      => {
